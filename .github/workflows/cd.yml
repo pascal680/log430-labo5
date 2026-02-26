@@ -1,0 +1,46 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    environment: labo05
+
+    steps:
+      - name: Pre-checkout cleanup (Fix Permissions)
+        run: |
+          # Use sudo to delete root-owned pycache or log files left by containers
+          sudo rm -rf ${{ github.workspace }}/* || true
+
+      - name: Checkout depot
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Creates .env file
+        run: |
+          cat > .env << EOF
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_NAME=${{ secrets.MYSQL_DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          REDIS_DB=${{ secrets.REDIS_DB }}
+          EOF
+
+      - name: Creates docker network
+        run: docker network create labo05-network || true
+
+      - name: Deploys with docker-compose
+        run: |
+          docker-compose down -v
+          docker-compose build
+          docker-compose up -d 
+
+      - name: Verify that containers are running
+        run: docker ps
